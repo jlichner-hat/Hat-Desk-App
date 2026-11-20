@@ -203,6 +203,8 @@ def test_next_runs(store):
 # ---- network agent ------------------------------------------------------------------
 @pytest.fixture
 def agent(store, desk):
+    from hat_desk.settings import set_admin_key
+    assert set_admin_key(store, "office-key-0") == ""
     a = DeskAgent(store, desk, host="127.0.0.1", port=0, discovery=False)
     a.start()
     yield a
@@ -263,3 +265,36 @@ def test_admin_key_at_install(store):
     assert set_admin_key(store, "  office-key-9 ") == ""
     s = SettingsStore(store.path).settings
     assert s.admin_key == "office-key-9" and s.admin_key_set
+
+
+# ---- one row per desk in the admin list ----------------------------------------------
+def test_merge_desks_keeps_one_row_per_desk():
+    from hat_desk.admin_client import merge_desks
+    lan = DeskEntry("JLichner", "10.3.11.82", 47820, desk_id="abc")
+    local = DeskEntry("JLichner", "127.0.0.1", 47820, desk_id="abc")
+    other = DeskEntry("Design 4", "10.3.11.90", 47820, desk_id="def")
+    # a desk on the admin PC answers on both addresses
+    assert [d.address for d in merge_desks([], [local, lan, other])] == ["10.3.11.82:47820", "10.3.11.90:47820"]
+    # lists saved before desks had ids get cleaned up by the next Find desks
+    old = [DeskEntry("JLichner", "10.3.11.82", 47820), DeskEntry("JLichner", "127.0.0.1", 47820)]
+    assert [d.address for d in merge_desks(old, [local, lan])] == ["10.3.11.82:47820"]
+    # a desk added by hand isn't duplicated or dropped
+    manual = [DeskEntry("Warehouse", "10.0.4.31", 47820)]
+    assert [d.address for d in merge_desks(manual, [lan])] == ["10.0.4.31:47820", "10.3.11.82:47820"]
+
+
+def test_agent_says_when_desk_has_no_key(store, desk):
+    a = DeskAgent(store, desk, host="127.0.0.1", port=0, discovery=False)
+    a.start()
+    try:
+        c = DeskClient(DeskEntry("d", "127.0.0.1", a.port), store.settings.admin_key)
+        with pytest.raises(DeskError, match="admin key not set on this desk"):
+            c.status()
+        from hat_desk.settings import set_admin_key
+        assert set_admin_key(store, "office-key-1") == ""
+        with pytest.raises(DeskError, match="wrong admin key"):
+            DeskClient(DeskEntry("d", "127.0.0.1", a.port), "office-key-2").status()
+        st = DeskClient(DeskEntry("d", "127.0.0.1", a.port), "office-key-1").status()
+        assert st["id"] == store.settings.desk_id and len(st["id"]) == 12
+    finally:
+        a.stop()

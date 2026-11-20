@@ -130,6 +130,7 @@ class DeskController:
         lo, hi = s.allowed_range()
         return {
             "name": s.desk_name,
+            "id": s.desk_id,
             "online": self.online,
             "height_mm": None if self.height is None else round(self.height, 1),
             "moving": self.moving,

@@ -71,6 +71,7 @@ DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 @dataclass
 class Settings:
     desk_name: str = ""
+    desk_id: str = ""                    # random, set on first start; tells desks apart on the LAN
     height_offset_mm: float = 640.0      # desk height with the leg fully down (calibrate in Settings)
     stroke_mm: float = 665.0             # DL6 stroke
     low_limit_mm: Optional[float] = None # user's lowest allowed desk height (None = leg's lowest)
@@ -199,6 +200,9 @@ class SettingsStore:
         changed = False
         if not s.desk_name:
             s.desk_name = os.environ.get("COMPUTERNAME") or platform.node() or "Desk"
+            changed = True
+        if not s.desk_id:
+            s.desk_id = secrets.token_hex(6)
             changed = True
         if not s.admin_key:
             s.admin_key = secrets.token_urlsafe(16)
