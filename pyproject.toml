@@ -7,7 +7,7 @@ name = "linak-leg"
 version = "0.1.0"
 description = "Control a LINAK lifting column (DL6) through a CBD6S control box and a USB2LIN06 cable"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["hidapi>=0.14"]
 
 [project.optional-dependencies]
