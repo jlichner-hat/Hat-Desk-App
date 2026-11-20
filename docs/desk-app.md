@@ -41,7 +41,8 @@ drives the LINAK DL6 leg through the CBD6S control box and the USB2LIN06 cable.
 | Speed | fixed by the CBD6S (about 38 mm/s), not settable over USB2LIN06 | |
 
 The admin key is what separates the two: each desk accepts network commands only with the
-office admin key, which is set once at install and never shown in the desk app.
+office admin key. IT sets it once per desk (in settings or on the command line), and the desk
+app never shows it.
 
 ## Using it
 
@@ -50,10 +51,20 @@ office admin key, which is set once at install and never shown in the desk app.
 1. Install Python 3.10+ (python.org, tick "Add to PATH").
 2. Copy this repo to the PC, plug the USB2LIN06 cable into the CBD6S, close LINAK's Desk Control
    app (only one program can use the cable).
-3. Set the office admin key once:  `python -m hat_desk --admin-key YOUR-OFFICE-KEY`
-4. Double-click `HAT_DESK.bat`. The HAT mark appears in the tray. Click it for the panel.
+3. Double-click `HAT_DESK.bat`. The HAT mark appears in the tray. Click it for the panel.
    Windows Firewall asks once about network access; allow **private networks** so the admin
    console can reach the desk.
+4. Set the office admin key once: click the HAT mark, then **⚙ → My desk → Office network →
+   Admin key → Set...**, and type the key twice. It's saved right away.
+   Or from a Command Prompt in the app folder, for scripted installs:
+   `python -m hat_desk --admin-key YOUR-OFFICE-KEY`
+
+The key is never shown in the app, only whether one is set. Once it is set, changing it in
+settings asks for the current key, so a desk's user can't casually cut the desk off from the
+admin console and its cleaning schedule. This is a guard, not a lock: the settings file lives
+in the user's own `%APPDATA%`, and the command line can still overwrite the key.
+
+<img src="img/admin_key.png" width="340">
 
 In the panel: hold ▲ / ▼ to move. Click a preset to go there; **hold a preset for a second
 to save the current height** to it (or right-click for Save / Rename). ⚙ opens settings:

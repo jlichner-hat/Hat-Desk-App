@@ -239,3 +239,27 @@ def test_parse_schedules_rejects_bad_input():
         parse_schedules("nope")
     r = parse_schedules([{"id": "x", "time": "7:5", "action": "preset:2"}])
     assert r[0].time == "07:05"
+
+
+# ---- admin key from settings ----------------------------------------------------------
+def test_change_admin_key(store):
+    from hat_desk.settings import change_admin_key
+    assert not store.settings.admin_key_set
+    assert change_admin_key(store, "short", "short") == "Use at least 8 characters."
+    assert change_admin_key(store, "office-key-1", "office-key-2") == "The two keys don't match."
+    assert change_admin_key(store, "office-key-1", "office-key-1") == ""
+    assert store.settings.admin_key == "office-key-1" and store.settings.admin_key_set
+    # once set, changing it needs the current key
+    assert change_admin_key(store, "office-key-2", "office-key-2") == "The current key is wrong."
+    assert change_admin_key(store, "office-key-2", "office-key-2", current="guess") == "The current key is wrong."
+    assert change_admin_key(store, "office-key-2", "office-key-2", current="office-key-1") == ""
+    assert SettingsStore(store.path).settings.admin_key == "office-key-2"
+
+
+def test_admin_key_at_install(store):
+    from hat_desk.settings import set_admin_key
+    assert set_admin_key(store, "short") == "The admin key needs at least 8 characters."
+    assert not store.settings.admin_key_set
+    assert set_admin_key(store, "  office-key-9 ") == ""
+    s = SettingsStore(store.path).settings
+    assert s.admin_key == "office-key-9" and s.admin_key_set
