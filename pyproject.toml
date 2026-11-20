@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linak-leg"
+version = "0.1.0"
+description = "Control a LINAK lifting column (DL6) through a CBD6S control box and a USB2LIN06 cable"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["hidapi>=0.14"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+linak-test = "linak_leg.cli:main"
+
+[tool.setuptools]
+packages = ["linak_leg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
