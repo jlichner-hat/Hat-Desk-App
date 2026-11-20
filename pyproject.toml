@@ -20,4 +20,4 @@ linak-test = "linak_leg.cli:main"
 packages = ["linak_leg"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "tests_desk"]
