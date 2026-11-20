@@ -36,7 +36,7 @@ leg, why = LinakLeg.try_open(LegConfig(min_position=500))   # never raises
 if leg is None:
     print("no leg:", why)
 
-## every UI frame, from the button being held:
+# every UI frame, from the button being held:
 leg.command(+1)      # +1 up, -1 down, 0 nothing held
 leg.mm               # height in mm (None while offline)
 leg.online, leg.message, leg.resting
