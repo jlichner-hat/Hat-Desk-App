@@ -85,6 +85,18 @@ return to remembered height.
 
 <img src="img/admin.png" width="760">
 
+### If a desk shows an error in the admin console
+
+| Status | What to do |
+| --- | --- |
+| Admin key not set on this desk | On that desk: ⚙ → My desk → Office network → Admin key → Set..., using the same key as the console. |
+| Wrong admin key | The desk and the console have different keys. Re-enter it in the console (**Admin key...**) or on the desk (**Change...**). Keys are case-sensitive. |
+| Not reachable | The desk app isn't running, the PC is off, or Windows Firewall is blocking port 47820 on that PC. |
+
+A desk on the admin PC itself answers on two addresses (its LAN address and 127.0.0.1), and
+**Find desks** keeps one row for it. Lists saved by older versions are cleaned up the next
+time you click **Find desks**.
+
 ### Try it without a desk
 
 `python -m hat_desk --sim` runs the tray app on the simulated control box and leg.

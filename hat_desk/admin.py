@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTimeEdit,
                                QVBoxLayout, QWidget)
 
-from .admin_client import AdminSettings, DeskClient, DeskEntry, DeskError, discover
+from .admin_client import (AdminSettings, DeskClient, DeskEntry, DeskError, dedupe_desks, discover,
+                           merge_desks)
 from .settings import DAY_NAMES, ScheduleRule
 from .ui import theme
 from .ui.settings_dialog import _days_text
@@ -261,9 +262,9 @@ class AdminWindow(QMainWindow):
         self.result_lbl.setText("Looking for desks on the network...")
         QApplication.processEvents()
         found = discover()
-        known = {(d.host, d.port) for d in self.cfg.desks}
-        new = [d for d in found if (d.host, d.port) not in known]
-        self.cfg.desks.extend(new)
+        before = len(self.cfg.desks)
+        self.cfg.desks = merge_desks(self.cfg.desks, found)
+        new = self.cfg.desks[before:] if len(self.cfg.desks) > before else []
         self.cfg.desks.sort(key=lambda d: d.name.lower())
         self._save()
         self._fill_desks()
@@ -323,6 +324,17 @@ class AdminWindow(QMainWindow):
             text += " (sim)"
         self.table.item(row, 2).setText(text)
         self.table.item(row, 2).setForeground(QColor(theme.INK) if st.get("online") else QColor(theme.WARN))
+        desk_id = st.get("id")
+        if desk_id and row < len(self.cfg.desks) and self.cfg.desks[row].desk_id != desk_id:
+            self.cfg.desks[row].desk_id = desk_id
+            merged = dedupe_desks(self.cfg.desks)
+            if len(merged) != len(self.cfg.desks):     # same desk listed twice: keep one row
+                self.cfg.desks = merged
+                self._save()
+                self._fill_desks()
+                self.poll()
+                return
+            self._save()
         name = st.get("name")
         if name and row < len(self.cfg.desks) and self.cfg.desks[row].name != name:
             self.cfg.desks[row].name = name

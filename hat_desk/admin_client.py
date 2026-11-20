@@ -20,10 +20,53 @@ class DeskEntry:
     host: str
     port: int = 47820
     selected: bool = True
+    desk_id: str = ""            # the desk's own id, from discovery or /status
 
     @property
     def address(self) -> str:
         return f"{self.host}:{self.port}"
+
+    @property
+    def loopback(self) -> bool:
+        return self.host.startswith("127.") or self.host in ("localhost", "::1")
+
+
+def merge_desks(existing: List[DeskEntry], found: List[DeskEntry]) -> List[DeskEntry]:
+    """Add newly found desks to the list, one row per desk.
+
+    A desk on the admin PC itself answers discovery twice (on its LAN address and on
+    127.0.0.1), so desks are matched by their id, and a LAN address wins over 127.0.0.1
+    because other admin PCs can use it too."""
+    out = [DeskEntry(**vars(d)) for d in existing]
+    for f in found:
+        same = [d for d in out if (f.desk_id and d.desk_id == f.desk_id) or (d.host, d.port) == (f.host, f.port)]
+        if not same:
+            out.append(DeskEntry(**vars(f)))       # a copy: the merge below mustn't edit the input
+            continue
+        d = same[0]
+        d.desk_id = d.desk_id or f.desk_id
+        if d.loopback and not f.loopback:
+            d.host, d.port = f.host, f.port
+    return dedupe_desks(out)
+
+
+def dedupe_desks(desks: List[DeskEntry]) -> List[DeskEntry]:
+    """Drop repeat rows for the same desk id (keeping a LAN address over 127.0.0.1)."""
+    by_id, out = {}, []
+    for d in desks:
+        if not d.desk_id:
+            out.append(d)
+            continue
+        keep = by_id.get(d.desk_id)
+        if keep is None:
+            by_id[d.desk_id] = d
+            out.append(d)
+        elif keep.loopback and not d.loopback:
+            keep.host, keep.port = d.host, d.port
+            keep.selected = keep.selected or d.selected
+        else:
+            keep.selected = keep.selected or d.selected
+    return out
 
 
 @dataclass
@@ -78,10 +121,10 @@ def discover(timeout: float = 1.5, port: int = DISCOVERY_PORT) -> List[DeskEntry
             if d.get("hatdesk"):
                 host = addr[0]
                 found[(host, int(d["port"]))] = DeskEntry(name=str(d.get("name") or host), host=host,
-                                                          port=int(d["port"]))
+                                                          port=int(d["port"]), desk_id=str(d.get("id") or ""))
     finally:
         s.close()
-    return list(found.values())
+    return merge_desks([], list(found.values()))
 
 
 class DeskError(Exception):

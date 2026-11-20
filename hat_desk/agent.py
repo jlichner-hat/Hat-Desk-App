@@ -89,8 +89,13 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _authorised(self) -> bool:
         key = self.headers.get("X-HAT-Key", "")
-        want = self.agent.store.settings.admin_key
-        if want and hmac.compare_digest(key.encode(), want.encode()):
+        s = self.agent.store.settings
+        if not s.admin_key_set:
+            # The desk only has its random placeholder key: nobody can know it, so say so
+            # instead of "wrong key", which sends people hunting for a typo.
+            self._send(401, {"error": "admin key not set on this desk"})
+            return False
+        if hmac.compare_digest(key.encode(), s.admin_key.encode()):
             return True
         self._send(401, {"error": "wrong admin key"})
         return False
@@ -185,7 +190,7 @@ class DeskAgent:
                 return
             if data.strip() == DISCOVERY_PROBE:
                 reply = json.dumps({"hatdesk": 1, "name": self.store.settings.desk_name,
-                                    "port": self.port}).encode()
+                                    "id": self.store.settings.desk_id, "port": self.port}).encode()
                 try:
                     self._udp.sendto(reply, addr)
                 except OSError:
