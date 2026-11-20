@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QHeaderView, QAbstractItemView)
 
 from . import theme
-from ..settings import DAY_NAMES
+from ..settings import DAY_NAMES, MIN_KEY_LENGTH, change_admin_key
 
 
 def _days_text(days):
@@ -155,6 +155,18 @@ class SettingsDialog(QDialog):
         r += 1
         hint("Measure floor to desktop with a tape and enter it, so the readout matches your desk.")
 
+        section("OFFICE NETWORK")
+        self.key_status = QLabel()
+        self.key_btn = QPushButton()
+        self.key_btn.clicked.connect(self._edit_key)
+        g.addWidget(QLabel("Admin key"), r, 0, 1, 2)
+        g.addWidget(self.key_status, r, 2)
+        g.addWidget(self.key_btn, r, 3)
+        r += 1
+        hint("Lets the admin console move this desk and send it schedules. "
+             "Set by IT; the key itself is never shown.")
+        self._show_key_status()
+
         if sys.platform == "win32":
             self.autostart = QCheckBox("Start with Windows")
             self.autostart.setChecked(s.start_with_windows)
@@ -164,6 +176,18 @@ class SettingsDialog(QDialog):
             self.autostart = None
         g.setRowStretch(r, 1)
         return w
+
+    def _show_key_status(self):
+        is_set = self.store.settings.admin_key_set
+        self.key_status.setText("Set  ●●●●●●●●" if is_set else "Not set")
+        self.key_status.setObjectName("" if is_set else "Hint")
+        self.key_status.style().unpolish(self.key_status)
+        self.key_status.style().polish(self.key_status)
+        self.key_btn.setText("Change..." if is_set else "Set...")
+
+    def _edit_key(self):
+        if AdminKeyDialog(self.store, self).exec():
+            self._show_key_status()
 
     def _schedule_tab(self, s):
         w = QWidget()
@@ -244,4 +268,55 @@ class SettingsDialog(QDialog):
         if self.autostart is not None:
             from ..autostart import set_autostart
             set_autostart(self.store.settings.start_with_windows)
+        self.accept()
+
+
+class AdminKeyDialog(QDialog):
+    """Set or change the office admin key. Changing a key IT already set needs the current one."""
+
+    def __init__(self, store, parent=None):
+        super().__init__(parent)
+        self.store = store
+        changing = store.settings.admin_key_set
+        self.setWindowTitle("Change admin key" if changing else "Set admin key")
+        g = QGridLayout(self)
+        g.setContentsMargins(18, 18, 18, 18)
+        g.setVerticalSpacing(8)
+        g.setColumnStretch(1, 1)
+        r = 0
+
+        def field(label):
+            nonlocal r
+            e = QLineEdit(echoMode=QLineEdit.Password)
+            e.setMinimumWidth(220)
+            g.addWidget(QLabel(label), r, 0)
+            g.addWidget(e, r, 1)
+            r += 1
+            return e
+
+        self.current = field("Current key") if changing else None
+        self.new = field("New key")
+        self.confirm = field("New key again")
+        g.addWidget(QLabel(f"Use the same office key as the admin console, at least {MIN_KEY_LENGTH} "
+                           "characters.", objectName="Hint", wordWrap=True), r, 0, 1, 2)
+        r += 1
+        self.error = QLabel(objectName="Error", wordWrap=True)
+        self.error.setStyleSheet(f"color: {theme.WARN};")
+        self.error.hide()
+        g.addWidget(self.error, r, 0, 1, 2)
+        r += 1
+        bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Save).setObjectName("Primary")
+        bb.accepted.connect(self._save)
+        bb.rejected.connect(self.reject)
+        g.addWidget(bb, r, 0, 1, 2)
+        (self.current or self.new).setFocus()
+
+    def _save(self):
+        err = change_admin_key(self.store, self.new.text(), self.confirm.text(),
+                               self.current.text() if self.current else "")
+        if err:
+            self.error.setText(err)
+            self.error.show()
+            return
         self.accept()

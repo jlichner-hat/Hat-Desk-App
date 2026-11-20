@@ -6,6 +6,7 @@ when the leg is fully down, so desk height = offset + leg position.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import platform
@@ -85,6 +86,7 @@ class Settings:
     agent_enabled: bool = True
     agent_port: int = 47820
     admin_key: str = ""                  # shared secret; admin console must send it
+    admin_key_set: bool = False          # True once IT has set the office key (False = random, unused)
     start_with_windows: bool = True
 
     # ---- derived ----------------------------------------------------------
@@ -132,6 +134,44 @@ class Settings:
         if "schedules" in d:
             d["schedules"] = [ScheduleRule(**r) for r in d["schedules"]]
         return cls(**d)
+
+
+MIN_KEY_LENGTH = 8
+
+
+def change_admin_key(store: "SettingsStore", new_key: str, confirm: str, current: str = "") -> str:
+    """Set the office admin key. Returns "" on success, or a reason it was refused.
+
+    Once IT has set a key, changing it needs the current one, so a desk's user can't lock
+    the admin console out of their desk (and out of its cleaning schedule)."""
+    s = store.settings
+    new_key = new_key.strip()
+    if s.admin_key_set and not hmac.compare_digest(current.strip().encode(), s.admin_key.encode()):
+        return "The current key is wrong."
+    if len(new_key) < MIN_KEY_LENGTH:
+        return f"Use at least {MIN_KEY_LENGTH} characters."
+    if new_key != confirm.strip():
+        return "The two keys don't match."
+
+    def upd(st):
+        st.admin_key = new_key
+        st.admin_key_set = True
+    store.update(upd)
+    return ""
+
+
+def set_admin_key(store: "SettingsStore", key: str) -> str:
+    """Set the office key at install time (`python -m hat_desk --admin-key`), no current key
+    needed. Returns "" on success, or a reason it was refused."""
+    key = key.strip()
+    if len(key) < MIN_KEY_LENGTH:
+        return f"The admin key needs at least {MIN_KEY_LENGTH} characters."
+
+    def upd(st):
+        st.admin_key = key
+        st.admin_key_set = True
+    store.update(upd)
+    return ""
 
 
 class SettingsStore:

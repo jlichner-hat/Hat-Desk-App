@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from .controller import DeskController
 from .scheduler import Scheduler
-from .settings import SettingsStore, app_dir
+from .settings import SettingsStore, app_dir, set_admin_key
 from .ui import theme
 from .ui.panel import DeskPanel
 from .ui.settings_dialog import SettingsDialog
@@ -157,7 +157,10 @@ def main(argv=None):
 
     if a.admin_key:
         store = SettingsStore()
-        store.update(lambda s: setattr(s, "admin_key", a.admin_key))
+        err = set_admin_key(store, a.admin_key)
+        if err:
+            print(err)
+            return 1
         print("Admin key saved for", store.settings.desk_name)
         return 0
 
