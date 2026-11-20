@@ -41,7 +41,8 @@ class LegConfig:
     stop_recheck: float = 0.15      # after a stop, check again this much later
     reconnect_wait: float = 2.0     # wait before reopening a lost cable
     goto_tolerance: int = 20        # go_to() counts as arrived within this (0.1 mm units)
-    limit_margin: int = 40          # a hold stops this far before min/max_position, for the coast
+    limit_margin: int = 10          # a hold stops at least this far before min/max_position ...
+    limit_lookahead: float = 0.25   # ... plus how far the leg travels in this time at its current speed
     log_path: Optional[str] = "leg_errors.log"   # every USB glitch, with time (None = off)
     max_log_lines: int = 2000
 
@@ -78,6 +79,9 @@ class LinakLeg:
         self.moving = self.going_down = False
         self.target: Optional[int] = None
         self.last_status: Optional[P.Status] = None
+        self.speed = 0.0                          # 0.1 mm per second, + up / - down, from recent polls
+        self._prev_poll: Optional[Tuple[float, int]] = None
+        self._wake = threading.Event()            # wakes the thread early when a command arrives
         self.online, self.message = True, ""
         self.fails, self.errors_logged = 0, 0
         self.runs = collections.deque()          # (start, end) of recent moves, for the duty cycle
@@ -118,7 +122,11 @@ class LinakLeg:
     def command(self, d: int):
         """Call every UI frame: +1 hold up, -1 hold down, 0 not held.
         A held direction cancels a running go_to()."""
-        self.dir, self.dir_t = (1 if d > 0 else -1 if d < 0 else 0), time.monotonic()
+        d = 1 if d > 0 else -1 if d < 0 else 0
+        changed = d != self.dir
+        self.dir, self.dir_t = d, time.monotonic()
+        if changed:
+            self._wake.set()                      # act now, not at the next idle poll
 
     def stop(self):
         """Stop any move: releases a hold and cancels a go_to()."""
@@ -150,6 +158,7 @@ class LinakLeg:
             self._goal_start = time.monotonic()
             self._goal_deadline = self._goal_start + timeout
             self._goal_last_pos, self._goal_still = None, 0
+        self._wake.set()
         if not wait:
             return "started"
         return self.wait_goal(timeout + 2.0)
@@ -199,6 +208,12 @@ class LinakLeg:
         st = P.parse_status(self.dev.get_feature_report(P.REPORT_STATUS, P.REPORT_LEN))
         self.pos, self.moving, self.going_down, self.target = st.position, st.moving, st.going_down, st.target
         self.last_status = st
+        now = time.monotonic()
+        if not st.moving:
+            self.speed = 0.0
+        elif self._prev_poll is not None and now - self._prev_poll[0] > 0.02:
+            self.speed = (st.position - self._prev_poll[1]) / (now - self._prev_poll[0])
+        self._prev_poll = (now, st.position)
         return st
 
     def _send(self, value: int):
@@ -221,11 +236,14 @@ class LinakLeg:
         return self.cfg.duty_max - self.run_seconds()
 
     def _at_limit(self, d: int) -> bool:
+        """True if moving on in direction d would pass min/max_position before the next check
+        (the next poll is up to ~0.1 s away and a stop isn't instant), judged at the current speed."""
         if self.pos is None:
             return False
-        if d < 0 and self.cfg.min_position is not None and self.pos <= self.cfg.min_position + self.cfg.limit_margin:
+        ahead = self.cfg.limit_margin + abs(self.speed) * self.cfg.limit_lookahead
+        if d < 0 and self.cfg.min_position is not None and self.pos - ahead <= self.cfg.min_position:
             return True
-        if d > 0 and self.cfg.max_position is not None and self.pos >= self.cfg.max_position - self.cfg.limit_margin:
+        if d > 0 and self.cfg.max_position is not None and self.pos + ahead >= self.cfg.max_position:
             return True
         return False
 
@@ -282,6 +300,8 @@ class LinakLeg:
                     self._init()
                     self.online, self.message, self.fails = True, "", 0
                     self._log("reconnected")
+                if last_active and (self.cfg.min_position is not None or self.cfg.max_position is not None):
+                    self._status()                     # fresh position for the limit check
                 now = time.monotonic()
                 d = self._hold_direction(now)
                 if d and self._goal is not None:       # a held button overrides go_to()
@@ -317,7 +337,8 @@ class LinakLeg:
                 if not active and self.resting and self._duty_left() > 10:
                     self.message = ""
                 self.fails = 0
-                time.sleep(self.cfg.send_every if active else self.cfg.idle_poll)
+                self._wake.wait(self.cfg.send_every if active else self.cfg.idle_poll)
+                self._wake.clear()
             except Exception as e:
                 # A single bad USB answer is normal on Windows: skip it and keep going (a held
                 # button keeps moving). Only several failures in a row mean the cable is lost.

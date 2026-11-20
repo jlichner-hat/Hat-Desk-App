@@ -71,8 +71,10 @@ leads to a stop.
 - **Hold limit.** A single hold stops by itself after `max_hold` (20 s).
 - **Duty cycle.** After `duty_max` (120 s) of running in `duty_window` (18 min), moves are
   refused and `leg.resting` is true until the leg has rested.
-- **Allowed range.** Optional `min_position` / `max_position`. Holds stop `limit_margin` (4 mm)
-  early to allow for the coast; `go_to()` targets are clamped. *Software limit only*.
+- **Allowed range.** Optional `min_position` / `max_position`. A hold stops early by
+  `limit_margin` (1 mm) plus the distance the leg covers in `limit_lookahead` (0.25 s) at its
+  current speed, about 10 mm at full speed, so it doesn't pass the limit while the stop takes
+  effect. `go_to()` targets are clamped. *Software limit only*.
 - **USB glitches.** Single bad answers are ignored and logged to `leg_errors.log`; after
   `max_fails` (6) in a row the leg counts as offline, the cable is closed and reopened.
 - **The CBD6S stays in charge** of overload cut-off, soft start/stop and end-of-travel limits.

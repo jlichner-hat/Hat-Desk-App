@@ -51,9 +51,10 @@ def test_hold_down(make_leg):
 def test_watchdog_stops_a_stalled_ui(make_leg):
     leg, sim = make_leg()
     leg.command(1)                    # UI confirms once, then freezes
-    time.sleep(0.3)
-    assert sim.moving
+    t0 = time.monotonic()
+    assert wait_for(lambda: sim.moving, 0.3)
     assert wait_for(lambda: not sim.moving, 1.0)
+    assert time.monotonic() - t0 < 1.0   # watchdog 0.5 s + stop
 
 
 def test_max_hold(make_leg):
@@ -86,7 +87,7 @@ def test_min_position(make_leg):
     hold(leg, -1, 1.0)
     leg.command(0)
     assert wait_for(lambda: not sim.moving, 0.5)
-    assert 98 <= sim.mm <= 105                    # stops at the lowest allowed height, never far below
+    assert 100 <= sim.mm <= 112                   # stops at the lowest allowed height, never below
 
 
 def test_glitches_are_ignored(make_leg):
@@ -182,3 +183,19 @@ def test_close_stops(make_leg):
     leg.close()
     assert not sim.moving
     assert not leg.thread.is_alive()
+
+
+def test_press_is_acted_on_without_waiting_for_the_idle_poll(make_leg):
+    leg, sim = make_leg(idle_poll=1.0)
+    time.sleep(0.2)
+    leg.command(1)
+    assert wait_for(lambda: sim.moving, 0.15)
+    leg.command(0)
+
+
+def test_max_position_stops_hold_before_limit(make_leg):
+    leg, sim = make_leg(SimulatedLeg(start_mm=300), max_position=3200)
+    hold(leg, 1, 1.5)
+    leg.command(0)
+    assert wait_for(lambda: not sim.moving, 0.5)
+    assert 308 <= sim.mm <= 320
