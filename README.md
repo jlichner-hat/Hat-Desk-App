@@ -148,3 +148,19 @@ held); stop = the opposite code once; `0`-`6650` go to a position.
 Sources: Linux kernel patch "actuator: introduce Linak USB2LIN cable support",
 [gryf/linak-ctrl](https://github.com/gryf/linak-ctrl),
 [ranma1988/usb2lin06](https://github.com/ranma1988/usb2lin06) (tested with a CBD6S).
+
+## Desk app: `hat_desk`
+
+A small Windows tray app for each sit-stand desk (hold ▲ ▼, three presets, lowest-height
+limit, units, calibration) plus an admin console that moves many desks and sends them clock
+schedules, e.g. all desks up at 5:30 PM for cleaning and back to their own height before
+people arrive. Built on `linak_leg`.
+
+```
+HAT_DESK.bat                         tray app (python -m hat_desk, --sim without hardware)
+HAT_DESK_ADMIN.bat                   admin console (python -m hat_desk.admin)
+python -m hat_desk --admin-key KEY   set the office admin key on a desk, once
+```
+
+Setup, roles, schedules and screenshots: [docs/desk-app.md](docs/desk-app.md).
+Tests: `tests_desk/` (run with the rest by `python -m pytest`).

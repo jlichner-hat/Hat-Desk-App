@@ -1,0 +1,3 @@
+# HAT Desk app (tray app + admin console). The leg package (linak_leg/) is in this repo.
+hidapi>=0.14
+PySide6>=6.6
